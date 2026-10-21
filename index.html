@@ -1,0 +1,71 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Busca de CEP</title>
+</head>
+<body>
+    <h1>Consultar CEP</h1>
+
+    <form id="formulario">
+        <input id="cep" placeholder="Digite o CEP" maxlength="9" required>
+        <button type="submit">Buscar</button>
+    </form>
+
+    <p id="mensagem"></p>
+    <div id="resultado"></div>
+
+    <script>
+        async function buscarCEP(cep) {
+            const mensagem = document.getElementById('mensagem');
+            const resultado = document.getElementById('resultado');
+
+            mensagem.textContent = '';
+            resultado.replaceChildren();
+
+            cep = cep.replace(/\D/g, '');
+
+            if (!/^\d{8}$/.test(cep)) {
+                mensagem.textContent = 'Digite um CEP com 8 números.';
+                return;
+            }
+
+            try {
+                const resposta = await fetch(
+                    `https://viacep.com.br/ws/${cep}/json/`
+                );
+
+                if (!resposta.ok) {
+                    throw new Error('Falha na consulta');
+                }
+
+                const dados = await resposta.json();
+
+                if (dados.erro) {
+                    mensagem.textContent = 'CEP não encontrado.';
+                    return;
+                }
+
+                resultado.textContent =
+                    `Rua: ${dados.logradouro || 'Não informada'}
+                     | Bairro: ${dados.bairro || 'Não informado'}
+                     | Cidade: ${dados.localidade}
+                     | Estado: ${dados.uf}`;
+
+            } catch (erro) {
+                mensagem.textContent =
+                    'Não foi possível consultar. Verifique sua conexão.';
+            }
+        }
+
+        document.getElementById('formulario')
+            .addEventListener('submit', function(evento) {
+                evento.preventDefault();
+
+                buscarCEP(document.getElementById('cep').value);
+            });
+    </script>
+</body>
+</html>
