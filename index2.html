@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Meu Projeto - Produtos</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; }
+    form { display: grid; gap: .5rem; margin-bottom: 1rem; }
+    input, button { padding: .5rem; font-size: 1rem; }
+    button { cursor: pointer; }
+    #mensagem { min-height: 1.5rem; font-weight: bold; }
+    .ok { color: green; }
+    .erro { color: crimson; }
+    li { padding: .4rem 0; border-bottom: 1px solid #ddd; }
+    section { margin-bottom: 2rem; }
+    #resultado-cep p { margin: .2rem 0; }
+  </style>
+</head>
+<body>
+  <section>
+  <h1>Produtos</h1>
+
+  <form id="form-produto">
+    <input type="text" id="nome" placeholder="Nome" required>
+    <input type="number" id="preco" placeholder="Preço" step="0.01" min="0" required>
+    <input type="text" id="categoria" placeholder="Categoria">
+    <button type="submit">Cadastrar</button>
+  </form>
+
+  <p id="mensagem"></p>
+  <ul id="lista"></ul>
+  </section>
+
+  <section>
+    <h1>Consultar CEP</h1>
+    <form id="form-cep">
+      <input id="cep" placeholder="Digite o CEP" maxlength="9" required>
+      <button type="submit">Buscar</button>
+    </form>
+    <p id="mensagem-cep"></p>
+    <div id="resultado-cep"></div>
+  </section>
+
+  <script>
+    const URL_API = 'http://localhost:5000/produtos';
+
+    // GET: busca os registros no banco
+    async function listarRegistros() {
+      const resposta = await fetch(URL_API);
+      if (!resposta.ok) throw new Error('Erro ao listar: ' + resposta.status);
+      return await resposta.json();
+    }
+
+    // POST: envia um novo registro
+    async function cadastrarRegistro(dados) {
+      const resposta = await fetch(URL_API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dados),
+      });
+      const corpo = await resposta.json();
+      if (!resposta.ok) throw new Error(corpo.erro || 'Erro ao cadastrar');
+      return corpo;
+    }
+
+    function mostrarMensagem(texto, tipo) {
+      const el = document.getElementById('mensagem');
+      el.textContent = texto;
+      el.className = tipo;
+    }
+
+    // Gera os elementos HTML a partir do array retornado
+    async function exibirLista() {
+      const ul = document.getElementById('lista');
+      try {
+        const produtos = await listarRegistros();
+        ul.innerHTML = '';
+        if (produtos.length === 0) {
+          ul.innerHTML = '<li>Nenhum produto cadastrado.</li>';
+          return;
+        }
+        produtos.forEach(p => {
+          const li = document.createElement('li');
+          li.textContent = `${p.nome} - R$ ${Number(p.preco).toFixed(2)}` +
+                           (p.categoria ? ` (${p.categoria})` : '');
+          ul.appendChild(li);
+        });
+      } catch (erro) {
+        mostrarMensagem('Não foi possível carregar a lista: ' + erro.message, 'erro');
+      }
+    }
+
+    document.getElementById('form-produto').addEventListener('submit', async (e) => {
+      e.preventDefault(); // evita recarregar a página
+      const dados = {
+        nome: document.getElementById('nome').value,
+        preco: document.getElementById('preco').value,
+        categoria: document.getElementById('categoria').value,
+      };
+      try {
+        const resultado = await cadastrarRegistro(dados);
+        mostrarMensagem(resultado.mensagem, 'ok');
+        e.target.reset();
+        await exibirLista(); // atualiza a lista sem recarregar
+      } catch (erro) {
+        mostrarMensagem('Erro: ' + erro.message, 'erro');
+      }
+    });
+
+    // ===== Busca de CEP (API pública ViaCEP) =====
+    async function buscarCEP(cep) {
+      const mensagem = document.getElementById('mensagem-cep');
+      const resultado = document.getElementById('resultado-cep');
+
+      mensagem.textContent = '';
+      mensagem.className = '';
+      resultado.replaceChildren();
+
+      cep = cep.replace(/\D/g, '');
+
+      if (!/^\d{8}$/.test(cep)) {
+        mensagem.textContent = 'Digite um CEP com 8 números.';
+        mensagem.className = 'erro';
+        return;
+      }
+
+      try {
+        const resposta = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+        if (!resposta.ok) throw new Error('Falha na consulta');
+
+        const dados = await resposta.json();
+        if (dados.erro) {
+          mensagem.textContent = 'CEP não encontrado.';
+          mensagem.className = 'erro';
+          return;
+        }
+
+        const campos = [
+          ['Rua', dados.logradouro || 'Não informada'],
+          ['Bairro', dados.bairro || 'Não informado'],
+          ['Cidade', dados.localidade],
+          ['Estado', dados.uf],
+        ];
+        campos.forEach(([rotulo, valor]) => {
+          const p = document.createElement('p');
+          const b = document.createElement('strong');
+          b.textContent = rotulo + ': ';
+          p.append(b, valor);
+          resultado.appendChild(p);
+        });
+      } catch (erro) {
+        mensagem.textContent = 'Não foi possível consultar. Verifique sua conexão.';
+        mensagem.className = 'erro';
+      }
+    }
+
+    document.getElementById('form-cep').addEventListener('submit', (e) => {
+      e.preventDefault();
+      buscarCEP(document.getElementById('cep').value);
+    });
+
+    exibirLista();
+  </script>
+</body>
+</html>
